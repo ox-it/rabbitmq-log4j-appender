@@ -1,9 +1,21 @@
 rabbitmq-log4j-appender
 =======================
 
-A simple log4j appender to publish messages to a RabbitMQ queue.  The appender includes a layout which converts all log messages to JSON objects.
+A simple log4j appender to publish messages to a RabbitMQ queue.  The appender includes a layout which converts all
+log messages to JSON objects.
 
 The configuration is simple:
+
+### Envrionmental Variables ###
+
+- `RABBITMQ_USER` - The username to use to connect to RabbitMQ.
+- `RABBITMQ_PASS` - The password to use to connect to RabbitMQ.
+- `RABBITMQ_URL` - The URL of the RabbitMQ connection. This takes precedence over everything else if present.
+
+### Configuration Options ###
+
+- verifySsl - Boolean, if true then it checks that the SSL certificate is signed by a good CA, if false accepts anything.
+- noisy - Boolean, if false then errors with configuration don't show full stack trace.
 
 ### XML Configuration ###
 <pre><code>&lt;?xml version="1.0" encoding="UTF-8" ?&gt;
@@ -76,6 +88,8 @@ log4j.appender.rabbitmq.durable=false
 log4j.appender.rabbitmq.queue=log4j-queue
 log4j.appender.rabbitmq.layout=com.plant42.log4j.layouts.JSONLayout
 </code></pre>
+
+
 
 I've added support for SSL.
 It also needs to not block when the queue is full or the connection to rabbitmq is lost.

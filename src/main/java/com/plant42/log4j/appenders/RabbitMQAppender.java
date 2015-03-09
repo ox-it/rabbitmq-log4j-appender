@@ -1,5 +1,6 @@
 package com.plant42.log4j.appenders;
 
+import com.plant42.log4j.QuietErrorHandler;
 import com.rabbitmq.client.*;
 
 import org.apache.log4j.AppenderSkeleton;
@@ -11,6 +12,7 @@ import javax.net.ssl.TrustManagerFactory;
 import javax.net.ssl.X509TrustManager;
 import java.io.IOException;
 import java.net.InetAddress;
+import java.net.URISyntaxException;
 import java.net.UnknownHostException;
 import java.security.*;
 import java.util.concurrent.*;
@@ -59,6 +61,8 @@ public class RabbitMQAppender extends AppenderSkeleton implements ShutdownListen
     private boolean durable = false;
     private String queue = "amqp-queue";
     private String routingKey = "";
+    private String url = null;
+    private boolean noisy = true;
     private long droppedEvents = 0;
     private long reconnections = 0;
     private int queueLimit = 1024;
@@ -90,12 +94,12 @@ public class RabbitMQAppender extends AppenderSkeleton implements ShutdownListen
      */
     protected String getConnectionDetails() {
         return
-                "Host: "+ host+ ", "+
-                "Port: "+ port + ", "+
-                "Virtual Host:"+ virtualHost+ ", "+
-                "Username: "+ username+ ", "+
-                "Password: "+ ((password == null || password.isEmpty())?"":"******")+ ", "+
-                "SSL: "+ ssl+ ", ";
+                "Host: "+ factory.getHost()+ ", "+
+                "Port: "+ factory.getPort() + ", "+
+                "Virtual Host:"+ factory.getVirtualHost()+ ", "+
+                "Username: "+ factory.getUsername()+ ", "+
+                "Password: "+ ((factory.getPassword() == null || factory.getPassword().isEmpty())?"":"******")+ ", "+
+                "SSL: "+ factory.isSSL()+ ", ";
     }
 
     /**
@@ -105,6 +109,12 @@ public class RabbitMQAppender extends AppenderSkeleton implements ShutdownListen
     @Override
     public void activateOptions() {
         super.activateOptions();
+
+        // Hide exceptions.
+        if (!noisy) {
+            errorHandler = new QuietErrorHandler(errorHandler);
+        }
+
         threadPool = new ThreadPoolExecutor(0, 1,
                 1000L, TimeUnit.MILLISECONDS,
                 new LinkedBlockingQueue<Runnable>(queueLimit));
@@ -117,6 +127,18 @@ public class RabbitMQAppender extends AppenderSkeleton implements ShutdownListen
                 // Ignore.
             }
         }
+        // Look in environment for details.
+        if (username == null || username.isEmpty()) {
+            username = System.getenv("RABBITMQ_USER");
+        }
+        if (password == null || password.isEmpty()) {
+            password = System.getenv("RABBITMQ_PASS");
+        }
+
+        String url = System.getenv("RABBITMQ_URL");
+        if (url != null &&  !(url.isEmpty()) ) {
+            this.url = url;
+        }
 
         //== creating connection
         try {
@@ -127,6 +149,10 @@ public class RabbitMQAppender extends AppenderSkeleton implements ShutdownListen
             threadPool.shutdown();
         } catch (GeneralSecurityException gse) { // thrown when SSL problems happen.
             errorHandler.error(gse.getMessage(), gse, ErrorCode.GENERIC_FAILURE);
+            threadPool.shutdown();
+        } catch (URISyntaxException e) {
+            // We don't logs the URL as it may contain passwords.
+            errorHandler.error("Failed to parse connection URL.", e, ErrorCode.GENERIC_FAILURE);
             threadPool.shutdown();
         }
 
@@ -158,19 +184,21 @@ public class RabbitMQAppender extends AppenderSkeleton implements ShutdownListen
     /**
      * Sets the ConnectionFactory parameters
      */
-    private void setFactoryConfiguration() throws KeyManagementException, NoSuchAlgorithmException, NoSuchProviderException, KeyStoreException {
-        factory.setHost(this.host);
-        factory.setPort(this.port);
-        if (ssl) {
-            if (verifySsl) {
-                factory.useSslProtocol("TLSv1", getTrustManager());
-            } else {
-                factory.useSslProtocol("TLSv1");
-            }
+    private void setFactoryConfiguration() throws KeyManagementException, NoSuchAlgorithmException, NoSuchProviderException, KeyStoreException, URISyntaxException {
+        if (this.url != null && !(this.url.isEmpty())) {
+            factory.setUri(this.url);
+        } else {
+            factory.setHost(this.host);
+            factory.setPort(this.port);
+            factory.setVirtualHost(this.virtualHost);
+            factory.setUsername(this.username);
+            factory.setPassword(this.password);
         }
-        factory.setVirtualHost(this.virtualHost);
-        factory.setUsername(this.username);
-        factory.setPassword(this.password);
+        if (verifySsl) {
+            factory.useSslProtocol("TLSv1", getTrustManager());
+        } else {
+            factory.useSslProtocol("TLSv1");
+        }
     }
 
     /**
@@ -405,6 +433,29 @@ public class RabbitMQAppender extends AppenderSkeleton implements ShutdownListen
 
     public void setQueueLimit(int queueLimit) {
         this.queueLimit = queueLimit;
+    }
+
+    /**
+     * Return the URL to connect to.
+     * @return The URL we are going to connect to.
+     */
+    public String getUrl() {
+        return url;
+    }
+
+    public void setUrl(String url) {
+        this.url = url;
+    }
+
+    /**
+     * Should we report errors with stack traces.
+     */
+    public boolean isNoisy() {
+        return noisy;
+    }
+
+    public void setNoisy(boolean noisy) {
+        this.noisy = noisy;
     }
 
     /**

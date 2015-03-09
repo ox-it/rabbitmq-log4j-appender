@@ -6,6 +6,8 @@ import org.apache.log4j.spi.ThrowableInformation;
 import org.json.JSONException;
 import org.json.JSONObject;
 
+import java.net.InetAddress;
+import java.net.UnknownHostException;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -37,6 +39,7 @@ import java.util.List;
 
 public class JSONLayout extends Layout {
 
+    private String identifier;
 
     /**
      * format a given LoggingEvent to a string, in this case JSONified string
@@ -100,6 +103,7 @@ public class JSONLayout extends Layout {
      * @throws JSONException
      */
     protected void writeBasic(JSONObject json, LoggingEvent event) throws JSONException {
+        json.put("identifier", identifier);
         json.put("threadName", event.getThreadName());
         json.put("level", event.getLevel().toString());
         json.put("timestamp", event.getTimeStamp());
@@ -121,6 +125,14 @@ public class JSONLayout extends Layout {
      */
     @Override
     public void activateOptions() {
+        // Use hostname if identifier isn't there.
+        if (identifier == null || identifier.isEmpty()) {
+            try {
+                identifier = InetAddress.getLocalHost().getHostName();
+            } catch (UnknownHostException e) {
+                // Ignore.
+            }
+        }
     }
 
 }
