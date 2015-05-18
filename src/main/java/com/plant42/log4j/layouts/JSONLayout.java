@@ -121,11 +121,20 @@ public class JSONLayout extends Layout {
     }
 
     /**
-     * Just fulfilling the interface/abstract class requirements
+     * Set the identifier if it hasn't been set.
      */
     @Override
     public void activateOptions() {
         // Use hostname if identifier isn't there.
+        // Windows uses COMPUTERNAME
+        if (identifier == null || identifier.isEmpty()) {
+            identifier = System.getenv("COMPUTERNAME");
+        }
+        // UNIX uses HOSTNAME
+        if (identifier == null || identifier.isEmpty()) {
+            identifier = System.getenv("HOSTNAME");
+        }
+        // Fallback to network name
         if (identifier == null || identifier.isEmpty()) {
             try {
                 identifier = InetAddress.getLocalHost().getHostName();
