@@ -160,24 +160,48 @@ public class RabbitMQAppender extends AppenderSkeleton implements ShutdownListen
         try {
             this.createChannel();
         } catch (IOException ioe) {
-            errorHandler.error("Failed to create channel", ioe, ErrorCode.GENERIC_FAILURE);
-            threadPool.shutdown();
+            errorHandler.error("Failed to create channel, disconnecting.", ioe, ErrorCode.GENERIC_FAILURE);
+            shutdown();
         }
 
         //== create exchange
+        // This may fail due to incorrect config, but it we may be able to continue
         try {
             this.createExchange();
         } catch (Exception ioe) {
             errorHandler.error("Failed to create exchange: "+ getExchange(), ioe, ErrorCode.GENERIC_FAILURE);
-            threadPool.shutdown();
         }
 
         //== create queue
+        // This may fail due to incorrect config, but it we may be able to continue
         try {
             this.createQueue();
         } catch (Exception ioe) {
             errorHandler.error("Failed to create queue: "+ getQueue(), ioe, ErrorCode.GENERIC_FAILURE);
-            threadPool.shutdown();
+        }
+
+        //== bind to queue
+        // If this fails we shutdown and close the connection to the server.
+        try {
+            this.bindQueue();
+        } catch (Exception ioe) {
+            errorHandler.error("Failed to bind queue: "+ getQueue()+ ", disconnecting.", ioe, ErrorCode.GENERIC_FAILURE);
+            shutdown();
+        }
+
+    }
+
+    /**
+     * If we couldn't start up correctly this shuts us down.
+     */
+    private void shutdown() {
+        threadPool.shutdown();
+        try {
+            if (connection != null) {
+                connection.close();
+            }
+        } catch (IOException closeIoe) {
+            // Ignore
         }
     }
 
@@ -472,13 +496,24 @@ public class RabbitMQAppender extends AppenderSkeleton implements ShutdownListen
 
 
     /**
-     * Declares and binds queue on rabbitMQ server according to properties
+     * Declares a queue on rabbitMQ server according to properties
      * @throws IOException
      */
     private void createQueue() throws IOException {
         if (this.channel != null && this.channel.isOpen()) {
             synchronized (this.channel) {
                 this.channel.queueDeclare(this.queue, false, false, false, null);
+            }
+        }
+    }
+
+    /**
+     * Binds a queue on rabbitMQ server according to properties
+     * @throws IOException
+     */
+    private void bindQueue() throws IOException {
+        if (this.channel != null && this.channel.isOpen()) {
+            synchronized (this.channel) {
                 this.channel.queueBind(this.queue, this.exchange, this.routingKey);
             }
         }
