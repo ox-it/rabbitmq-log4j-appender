@@ -14,6 +14,10 @@ The configuration is simple:
 
 ### Configuration Options ###
 
+If the appender fails to create the exchange or queue it will continue and attempt to bind to the queue, and only
+if the binding fails will it shutdown. This allows the configuration to be changed without breaking deployed changes.
+It will however warn about the configuration.
+
 - verifySsl - Boolean, if true then it checks that the SSL certificate is signed by a good CA, if false accepts anything.
 - noisy - Boolean, if false then errors with configuration don't show full stack trace.
 
@@ -91,7 +95,7 @@ log4j.appender.rabbitmq.layout=com.plant42.log4j.layouts.JSONLayout
 
 
 
-I've added support for SSL.
+### TODO 
 It also needs to not block when the queue is full or the connection to rabbitmq is lost.
 JSON.org java libs aren't very good, should switch out.
 com.rabbitmq.tools.json.JSONWriter - Looks to be an existing one in the client libs.
